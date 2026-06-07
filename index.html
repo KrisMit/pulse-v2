@@ -345,17 +345,41 @@
 //  PAINTING CONFIG
 // ═══════════════════════════════════════════════
 const PAINTINGS = {
+    1: {
+        name: "Painting I",
+        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
+        neutral:  "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes neutral verziju
+        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
+    },
     2: {
         name: "Painting II",
         calm:     "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         neutral:  "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         elevated: "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0"
     },
+    3: {
+        name: "Painting III",
+        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
+        neutral:  "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes neutral verziju
+        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
+    },
     4: {
         name: "Painting IV",
         calm:     "https://player.vimeo.com/video/1199145244?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         neutral:  "https://player.vimeo.com/video/1199082486?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         elevated: "https://player.vimeo.com/video/1198658886?autoplay=1&loop=1&title=0&byline=0&portrait=0"
+    },
+    5: {
+        name: "Painting V",
+        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
+        neutral:  "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes neutral verziju
+        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
+    },
+    6: {
+        name: "Painting VI",
+        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
+        neutral:  "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes neutral verziju
+        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
     },
     7: {
         name: "Painting VII",
@@ -369,7 +393,6 @@ const PAINTINGS = {
         neutral:  "https://player.vimeo.com/video/1198658887?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         elevated: "https://player.vimeo.com/video/1198658887?autoplay=1&loop=1&title=0&byline=0&portrait=0"
     }
-    // Add paintings 1, 3, 5, 6 here as you upload
 };
 
 const CALM_MAX     = 70;
@@ -419,51 +442,62 @@ async function startExperience() {
     setTimeout(() => { overlay.style.display = 'none'; }, 800);
     document.getElementById('main').classList.add('visible');
 
-    try {
-        // Request camera — environment = back camera
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: { exact: 'environment' },
-                width: { ideal: 320 },
-                height: { ideal: 320 }
-            }
-        });
-        video.srcObject = stream;
+    // Samsung A52 and similar: use simple constraints, avoid exact facingMode
+    const constraints = [
+        { video: { facingMode: 'environment', width: { ideal: 320 }, height: { ideal: 320 } } },
+        { video: { facingMode: 'environment' } },
+        { video: true }
+    ];
 
-        // Wait for video to be ready before enabling torch
-        video.onloadedmetadata = async () => {
-            const track = stream.getVideoTracks()[0];
-            try {
-                // Try torch immediately
-                await track.applyConstraints({ advanced: [{ torch: true }] });
-            } catch (e) {
-                // Some devices need a short delay
-                setTimeout(async () => {
-                    try {
-                        await track.applyConstraints({ advanced: [{ torch: true }] });
-                    } catch (e2) {
-                        statusEl.textContent = 'torch unavailable — use flash app';
-                    }
-                }, 500);
-            }
-        };
-
-        isActive = true;
-        requestAnimationFrame(processFrame);
-
-    } catch (err) {
-        // Fallback: try without exact facingMode constraint
+    for (const constraint of constraints) {
         try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-            });
-            video.srcObject = stream;
-            isActive = true;
-            requestAnimationFrame(processFrame);
-        } catch (err2) {
-            statusEl.textContent = 'camera access denied';
+            stream = await navigator.mediaDevices.getUserMedia(constraint);
+            break;
+        } catch (e) {
+            continue;
         }
     }
+
+    if (!stream) {
+        statusEl.textContent = 'camera access denied';
+        return;
+    }
+
+    video.srcObject = stream;
+
+    // Torch: try multiple times with increasing delays
+    const tryTorch = async () => {
+        const track = stream.getVideoTracks()[0];
+        if (!track) return;
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (!caps.torch) {
+            // Try anyway — some Samsung devices don't report torch in capabilities
+            for (const delay of [0, 300, 800, 1500]) {
+                await new Promise(r => setTimeout(r, delay));
+                try {
+                    await track.applyConstraints({ advanced: [{ torch: true }] });
+                    return; // success
+                } catch (e) {
+                    // continue trying
+                }
+            }
+            statusEl.textContent = 'no torch — cover flash with finger';
+        } else {
+            try {
+                await track.applyConstraints({ advanced: [{ torch: true }] });
+            } catch (e) {
+                statusEl.textContent = 'no torch — cover flash with finger';
+            }
+        }
+    };
+
+    video.onloadedmetadata = () => { tryTorch(); };
+    // Also try immediately and after short delay as backup
+    tryTorch();
+    setTimeout(tryTorch, 1000);
+
+    isActive = true;
+    requestAnimationFrame(processFrame);
 }
 
 function processFrame() {
@@ -566,10 +600,11 @@ function drawEcg(val) {
 // ═══════════════════════════════════════════════
 function getVideoUrl() {
     if (!painting) return null;
-    if (currentBpm > 0 && currentBpm < CALM_MAX)      return painting.calm;
-    if (currentBpm >= CALM_MAX && currentBpm <= ELEVATED_MIN) return painting.neutral;
-    if (currentBpm > ELEVATED_MIN) return painting.elevated;
-    return painting.neutral; // default fallback
+    const check = (u) => (!u || u === "DODAJ_VIMEO_URL") ? null : u;
+    if (currentBpm > 0 && currentBpm < CALM_MAX)                   return check(painting.calm);
+    if (currentBpm >= CALM_MAX && currentBpm <= ELEVATED_MIN)      return check(painting.neutral);
+    if (currentBpm > ELEVATED_MIN)                                  return check(painting.elevated);
+    return check(painting.neutral);
 }
 
 function openVideo() {
