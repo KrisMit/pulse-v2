@@ -491,10 +491,23 @@ async function startExperience() {
         }
     };
 
-    video.onloadedmetadata = () => { tryTorch(); };
-    // Also try immediately and after short delay as backup
+    // Wait for video to actually play before starting frame processing
+    await new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+            video.play().then(resolve).catch(resolve);
+        };
+        // Fallback if onloadedmetadata already fired
+        if (video.readyState >= 1) {
+            video.play().then(resolve).catch(resolve);
+        }
+    });
+
+    // Small extra delay for Samsung to stabilize
+    await new Promise(r => setTimeout(r, 400));
+
     tryTorch();
-    setTimeout(tryTorch, 1000);
+    setTimeout(tryTorch, 800);
+    setTimeout(tryTorch, 1800);
 
     isActive = true;
     requestAnimationFrame(processFrame);
@@ -511,14 +524,16 @@ function processFrame() {
         for (let i = 0; i < pixels.length; i += 4) rSum += pixels[i];
         const avgRed = rSum / (pixels.length / 4);
 
-        if (avgRed < 100) {
-            statusEl.textContent = 'cover lens with finger';
+        // Debug: show red value so we can tune threshold
+        statusEl.textContent = 'red: ' + Math.round(avgRed);
+
+        if (avgRed < 60) {
             bpmEl.textContent    = '--';
-            stateEl.textContent  = 'calibrating';
+            stateEl.textContent  = 'cover lens with finger';
             stateEl.className    = '';
             bpmEl.className      = '';
         } else {
-            statusEl.textContent = 'reading pulse…';
+            stateEl.textContent  = 'reading pulse…';
             analyzePulse(avgRed);
         }
 
