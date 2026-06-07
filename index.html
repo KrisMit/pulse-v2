@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Invisible Threads — Biometric Experience</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Inconsolata:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --red: #c0392b;
+            --red-glow: rgba(192, 57, 43, 0.4);
+            --gold: #b8a47a;
+            --dim: #444;
+            --bg: #060606;
+            --text: #e8e2d9;
+            --mono: 'Inconsolata', monospace;
+            --serif: 'Cormorant Garamond', Georgia, serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--serif);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── OVERLAY ── */
+        #overlay {
+            position: fixed; inset: 0; z-index: 200;
+            background: var(--bg);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; padding: 40px;
+            transition: opacity 0.8s ease;
+        }
+
+        #overlay.fade-out { opacity: 0; pointer-events: none; }
+
+        .overlay-title {
+            font-size: clamp(1.6rem, 5vw, 2.4rem);
+            font-weight: 300;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .overlay-subtitle {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            color: var(--gold);
+            text-transform: uppercase;
+            margin-bottom: 48px;
+        }
+
+        .finger-wrap {
+            position: relative;
+            width: 44px; height: 72px;
+            margin-bottom: 36px;
+        }
+
+        .finger-shape {
+            width: 44px; height: 72px;
+            border: 1px solid rgba(232,226,217,0.3);
+            border-radius: 22px;
+        }
+
+        .finger-pulse {
+            position: absolute;
+            top: 12px; left: 12px;
+            width: 20px; height: 38px;
+            background: var(--red);
+            border-radius: 10px;
+            opacity: 0.3;
+            animation: breathe 2.2s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.15; transform: scaleY(0.85); }
+            50% { opacity: 0.85; transform: scaleY(1); }
+        }
+
+        .overlay-instruction {
+            font-size: 1.05rem;
+            font-weight: 300;
+            line-height: 1.9;
+            color: rgba(232,226,217,0.7);
+            max-width: 280px;
+            margin-bottom: 48px;
+        }
+
+        .overlay-instruction strong {
+            color: var(--text);
+            font-weight: 400;
+        }
+
+        .tap-cta {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--red);
+            animation: blink-slow 2.5s ease-in-out infinite;
+        }
+
+        @keyframes blink-slow {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        /* ── MAIN UI ── */
+        #main {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            width: 100%; gap: 0;
+            opacity: 0; transition: opacity 1s ease 0.3s;
+        }
+
+        #main.visible { opacity: 1; }
+
+        /* painting name */
+        #painting-label {
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 28px;
+        }
+
+        /* Camera circle */
+        #cam-wrap {
+            position: relative;
+            width: 140px; height: 140px;
+            margin-bottom: 32px;
+        }
+
+        canvas {
+            width: 140px; height: 140px;
+            border-radius: 50%;
+            filter: saturate(1.4) contrast(1.1);
+            display: block;
+        }
+
+        /* Pulse ring */
+        #pulse-ring {
+            position: absolute; inset: -8px;
+            border-radius: 50%;
+            border: 1px solid var(--red);
+            opacity: 0;
+            transform: scale(1);
+        }
+
+        #pulse-ring.beat {
+            animation: ring-beat 0.5s ease-out forwards;
+        }
+
+        @keyframes ring-beat {
+            0% { opacity: 0.9; transform: scale(1); }
+            100% { opacity: 0; transform: scale(1.25); }
+        }
+
+        /* BPM */
+        #bpm-wrap {
+            display: flex; align-items: baseline; gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        #bpm-number {
+            font-size: 5rem;
+            font-weight: 300;
+            line-height: 1;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+            transition: color 0.6s ease;
+            min-width: 3ch;
+            text-align: right;
+        }
+
+        #bpm-number.calm-color { color: #7db8c9; }
+        #bpm-number.neutral-color { color: var(--text); }
+        #bpm-number.elevated-color { color: var(--red); }
+
+        #bpm-unit {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            color: var(--dim);
+            text-transform: uppercase;
+            padding-bottom: 8px;
+        }
+
+        /* State label */
+        #state-label {
+            font-family: var(--mono);
+            font-size: 0.58rem;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: var(--dim);
+            margin-bottom: 28px;
+            height: 1.2em;
+            transition: color 0.6s ease;
+        }
+
+        #state-label.calm-color { color: #7db8c9; }
+        #state-label.neutral-color { color: var(--gold); }
+        #state-label.elevated-color { color: var(--red); }
+
+        /* Status line */
+        #status {
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            color: var(--dim);
+            text-transform: uppercase;
+            margin-bottom: 36px;
+            height: 1.2em;
+        }
+
+        /* ECG line */
+        #ecg-wrap {
+            width: 240px; height: 40px;
+            margin-bottom: 36px;
+            opacity: 0.5;
+        }
+
+        #ecg-svg { width: 100%; height: 100%; }
+
+        /* Button */
+        #view-btn {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            background: none;
+            color: var(--text);
+            border: 1px solid rgba(232,226,217,0.3);
+            padding: 14px 36px;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            display: none;
+        }
+
+        #view-btn:hover {
+            background: var(--text);
+            color: var(--bg);
+            border-color: var(--text);
+        }
+
+        #view-btn.visible { display: block; }
+
+        /* ── HEART FLASH ── */
+        #heart-bg {
+            position: fixed; inset: 0; z-index: 1;
+            background: radial-gradient(circle at center, var(--red-glow) 0%, transparent 70%);
+            opacity: 0; pointer-events: none;
+        }
+
+        #heart-bg.flash {
+            animation: heart-flash 0.45s ease-out forwards;
+        }
+
+        @keyframes heart-flash {
+            0% { opacity: 0; }
+            30% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* ── VIDEO PLAYER ── */
+        #video-screen {
+            position: fixed; inset: 0; z-index: 300;
+            background: #000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        #video-screen.active { display: flex; }
+
+        #art-player {
+            width: 100%; height: 100%;
+            border: none;
+        }
+
+        #video-close {
+            position: absolute;
+            top: 20px; right: 20px;
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.4);
+            background: none; border: none;
+            cursor: pointer;
+            padding: 10px;
+            z-index: 10;
+        }
+
+        #video-close:hover { color: #fff; }
+
+        /* painting not found */
+        #not-found {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 12px;
+            padding: 40px;
+        }
+
+        #not-found.visible { display: flex; }
+
+        /* hidden video feed */
+        #v { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="heart-bg"></div>
+
+<!-- OVERLAY -->
+<div id="overlay" onclick="startExperience()">
+    <p class="overlay-title">Invisible Threads</p>
+    <p class="overlay-subtitle">Biometric Art Experience</p>
+    <div class="finger-wrap">
+        <div class="finger-shape"></div>
+        <div class="finger-pulse"></div>
+    </div>
+    <p class="overlay-instruction">
+        Place your <strong>index finger</strong> firmly over the
+        <strong>back camera</strong> and flash.
+    </p>
+    <p class="tap-cta">Tap to begin</p>
+</div>
+
+<!-- MAIN PULSE UI -->
+<div id="main">
+    <p id="painting-label">—</p>
+
+    <div id="cam-wrap">
+        <canvas id="c" width="100" height="100"></canvas>
+        <div id="pulse-ring"></div>
+    </div>
+
+    <div id="bpm-wrap">
+        <div id="bpm-number">--</div>
+        <div id="bpm-unit">BPM</div>
+    </div>
+    <div id="state-label">calibrating</div>
+    <div id="status">waiting for finger</div>
+
+    <div id="ecg-wrap">
+        <svg id="ecg-svg" viewBox="0 0 240 40" preserveAspectRatio="none">
+            <polyline id="ecg-line" points="0,20 240,20"
+                fill="none" stroke="#c0392b" stroke-width="1" opacity="0.6"/>
+        </svg>
+    </div>
+
+    <button id="view-btn" onclick="openVideo()">Enter Painting</button>
+</div>
+
+<!-- NOT FOUND -->
+<div id="not-found">
+    <p style="font-size:1.2rem; font-weight:300; letter-spacing:0.1em;">Painting not found</p>
+    <p style="font-family:var(--mono); font-size:0.6rem; color:var(--dim); letter-spacing:0.2em;">CHECK YOUR QR CODE URL</p>
+</div>
+
+<!-- VIDEO FULLSCREEN -->
+<div id="video-screen">
+    <button id="video-close" onclick="closeVideo()">✕ close</button>
+    <iframe id="art-player" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+</div>
+
+<video id="v" autoplay playsinline muted></video>
+
+<script>
+// ═══════════════════════════════════════════════
+//  PAINTING CONFIG
+//  Add all 8 paintings here.
+//  Each has calm / neutral / elevated video IDs.
+//  Until you have 3 versions, use the same ID for all 3.
+//  Vimeo embed format: https://player.vimeo.com/video/VIDEO_ID?autoplay=1&loop=1&title=0&byline=0&portrait=0
+// ═══════════════════════════════════════════════
+const PAINTINGS = {
+    2: {
+        name: "Painting II",
+        calm:     "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        neutral:  "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        elevated: "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0"
+    },
+    4: {
+        name: "Painting IV",
+        calm:     "https://player.vimeo.com/video/1199145244?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        neutral:  "https://player.vimeo.com/video/1199082486?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        elevated: "https://player.vimeo.com/video/1198658886?autoplay=1&loop=1&title=0&byline=0&portrait=0"
+    },
+    7: {
+        name: "Painting VII",
+        calm:     "https://player.vimeo.com/video/1198658885?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        neutral:  "https://player.vimeo.com/video/1198658885?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        elevated: "https://player.vimeo.com/video/1198658885?autoplay=1&loop=1&title=0&byline=0&portrait=0"
+    },
+    8: {
+        name: "Painting VIII",
+        calm:     "https://player.vimeo.com/video/1198658887?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        neutral:  "https://player.vimeo.com/video/1198658887?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        elevated: "https://player.vimeo.com/video/1198658887?autoplay=1&loop=1&title=0&byline=0&portrait=0"
+    }
+    // Add paintings 1, 3, 5, 6 here when ready
+};
+
+// BPM thresholds
+const CALM_MAX    = 70;  // < 70 → calm
+const ELEVATED_MIN = 90; // > 90 → elevated
+// between 70–90 → neutral
+
+// ═══════════════════════════════════════════════
+//  INIT — read painting ID from URL
+// ═══════════════════════════════════════════════
+const params     = new URLSearchParams(window.location.search);
+const paintingId = parseInt(params.get('painting'));
+const painting   = PAINTINGS[paintingId];
+
+if (!painting) {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('not-found').classList.add('visible');
+}
+
+document.getElementById('painting-label').textContent =
+    painting ? painting.name.toUpperCase() : '';
+
+// ═══════════════════════════════════════════════
+//  PULSE ENGINE
+// ═══════════════════════════════════════════════
+const video      = document.getElementById('v');
+const canvas     = document.getElementById('c');
+const ctx        = canvas.getContext('2d', { willReadFrequently: true });
+const bpmEl      = document.getElementById('bpm-number');
+const stateEl    = document.getElementById('state-label');
+const statusEl   = document.getElementById('status');
+const viewBtn    = document.getElementById('view-btn');
+const heartBg    = document.getElementById('heart-bg');
+const pulseRing  = document.getElementById('pulse-ring');
+
+let dataPoints   = [];
+let lastPeakTime = 0;
+let beatHistory  = [];
+let isActive     = false;
+let currentBpm   = 0;
+let ecgPoints    = Array(60).fill(20);
+let stream       = null;
+
+async function startExperience() {
+    if (!painting) return;
+    const overlay = document.getElementById('overlay');
+    overlay.classList.add('fade-out');
+    setTimeout(() => overlay.remove(), 800);
+    document.getElementById('main').classList.add('visible');
+
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: 100, height: 100 }
+        });
+        video.srcObject = stream;
+
+        const track = stream.getVideoTracks()[0];
+        const caps  = track.getCapabilities();
+        if (caps.torch) {
+            await track.applyConstraints({ advanced: [{ torch: true }] });
+        }
+
+        isActive = true;
+        requestAnimationFrame(processFrame);
+    } catch (err) {
+        statusEl.textContent = 'Camera access denied';
+    }
+}
+
+function processFrame() {
+    if (!isActive) return;
+    ctx.drawImage(video, 0, 0, 100, 100);
+    const pixels = ctx.getImageData(0, 0, 100, 100).data;
+
+    let rSum = 0;
+    for (let i = 0; i < pixels.length; i += 4) rSum += pixels[i];
+    const avgRed = rSum / (pixels.length / 4);
+
+    if (avgRed < 150) {
+        statusEl.textContent  = 'cover lens with finger';
+        bpmEl.textContent     = '--';
+        stateEl.textContent   = 'calibrating';
+        stateEl.className     = '';
+        bpmEl.className       = '';
+    } else {
+        statusEl.textContent  = 'reading pulse…';
+        analyzePulse(avgRed);
+    }
+
+    drawEcg(avgRed);
+    requestAnimationFrame(processFrame);
+}
+
+function analyzePulse(val) {
+    const now = Date.now();
+    dataPoints.push(val);
+    if (dataPoints.length > 30) dataPoints.shift();
+
+    const avg = dataPoints.reduce((a, b) => a + b) / dataPoints.length;
+
+    if (val > avg * 1.0015 && (now - lastPeakTime) > 450) {
+        const interval = now - lastPeakTime;
+        const bpm = Math.round(60000 / interval);
+
+        if (bpm > 45 && bpm < 160) {
+            beatHistory.push(bpm);
+            if (beatHistory.length > 8) beatHistory.shift();
+
+            currentBpm = Math.round(
+                beatHistory.reduce((a, b) => a + b) / beatHistory.length
+            );
+
+            bpmEl.textContent = currentBpm;
+            updateState(currentBpm);
+            triggerBeat();
+
+            if (beatHistory.length >= 5) {
+                statusEl.textContent = 'heartbeat locked';
+                viewBtn.classList.add('visible');
+            }
+        }
+        lastPeakTime = now;
+    }
+}
+
+function updateState(bpm) {
+    let state, colorClass;
+    if (bpm < CALM_MAX) {
+        state = 'resting  ·  calm state';
+        colorClass = 'calm-color';
+    } else if (bpm <= ELEVATED_MIN) {
+        state = 'present  ·  neutral state';
+        colorClass = 'neutral-color';
+    } else {
+        state = 'elevated  ·  activated state';
+        colorClass = 'elevated-color';
+    }
+    stateEl.textContent = state;
+    stateEl.className   = colorClass;
+    bpmEl.className     = colorClass;
+}
+
+function triggerBeat() {
+    // Background flash
+    heartBg.classList.remove('flash');
+    void heartBg.offsetWidth;
+    heartBg.classList.add('flash');
+
+    // Ring
+    pulseRing.classList.remove('beat');
+    void pulseRing.offsetWidth;
+    pulseRing.classList.add('beat');
+}
+
+// ── ECG line drawing ──
+function drawEcg(val) {
+    const normalized = Math.min(Math.max((val - 150) * 0.6, 0), 30);
+    ecgPoints.push(20 - normalized + 10);
+    if (ecgPoints.length > 60) ecgPoints.shift();
+
+    const pts = ecgPoints.map((y, i) => `${i * 4},${y}`).join(' ');
+    document.getElementById('ecg-line').setAttribute('points', pts);
+}
+
+// ═══════════════════════════════════════════════
+//  VIDEO ROUTING
+// ═══════════════════════════════════════════════
+function getVideoUrl() {
+    if (!painting) return null;
+    if (currentBpm < CALM_MAX)      return painting.calm;
+    if (currentBpm <= ELEVATED_MIN) return painting.neutral;
+    return painting.elevated;
+}
+
+function openVideo() {
+    // Stop camera
+    isActive = false;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+
+    const url = getVideoUrl();
+    if (!url) return;
+
+    document.getElementById('art-player').src = url;
+    document.getElementById('video-screen').classList.add('active');
+}
+
+function closeVideo() {
+    document.getElementById('art-player').src = '';
+    document.getElementById('video-screen').classList.remove('active');
+
+    // Restart pulse detection
+    isActive = true;
+    startExperience();
+}
+</script>
+</body>
+</html>
