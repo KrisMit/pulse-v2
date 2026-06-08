@@ -379,39 +379,39 @@
 const PAINTINGS = {
     1: {
         name: "Painting I",
-        calm:     "https://vimeo.com/manage/videos/1199573121?autoplay=1&loop=1&title=0&byline=0&portrait=0",  // ← zameni kada uploadujes calm verziju
-        neutral:  "https://vimeo.com/manage/videos/1199573119?autoplay=1&loop=1&title=0&byline=0&portrait=0",  // ← zameni kada uploadujes neutral verziju
-        elevated: "https://vimeo.com/manage/videos/1199573117?autoplay=1&loop=1&title=0&byline=0&portrait=0"   // ← zameni kada uploadujes elevated verziju
+        calm:     "https://player.vimeo.com/video/1199573121?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        neutral:  "https://player.vimeo.com/video/1199573119?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        elevated: "https://player.vimeo.com/video/1199573117?autoplay=1&loop=1&title=0&byline=0&portrait=0"
     },
     2: {
         name: "Painting II",
-        calm:     "https://vimeo.com/manage/videos/1199082489?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        calm:     "https://player.vimeo.com/video/1199082489?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         neutral:  "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         elevated: "https://player.vimeo.com/video/1198654326?autoplay=1&loop=1&title=0&byline=0&portrait=0"
     },
     3: {
         name: "Painting III",
-        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
-        neutral:  "https://vimeo.com/manage/videos/1199082488?autoplay=1&loop=1&title=0&byline=0&portrait=0",  // ← zameni kada uploadujes neutral verziju
-        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
+        calm:     "DODAJ_VIMEO_URL",
+        neutral:  "https://player.vimeo.com/video/1199082488?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        elevated: "DODAJ_VIMEO_URL"
     },
     4: {
         name: "Painting IV",
         calm:     "https://player.vimeo.com/video/1199145244?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         neutral:  "https://player.vimeo.com/video/1199082486?autoplay=1&loop=1&title=0&byline=0&portrait=0",
-        elevated: "https://vimeo.com/manage/videos/1199573139?autoplay=1&loop=1&title=0&byline=0&portrait=0"
+        elevated: "https://player.vimeo.com/video/1199573139?autoplay=1&loop=1&title=0&byline=0&portrait=0"
     },
     5: {
         name: "Painting V",
-        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
-        neutral:  "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes neutral verziju
-        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
+        calm:     "DODAJ_VIMEO_URL",
+        neutral:  "DODAJ_VIMEO_URL",
+        elevated: "DODAJ_VIMEO_URL"
     },
     6: {
         name: "Painting VI",
-        calm:     "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes calm verziju
-        neutral:  "DODAJ_VIMEO_URL",  // ← zameni kada uploadujes neutral verziju
-        elevated: "DODAJ_VIMEO_URL"   // ← zameni kada uploadujes elevated verziju
+        calm:     "DODAJ_VIMEO_URL",
+        neutral:  "DODAJ_VIMEO_URL",
+        elevated: "DODAJ_VIMEO_URL"
     },
     7: {
         name: "Painting VII",
@@ -556,9 +556,6 @@ function processFrame() {
         for (let i = 0; i < pixels.length; i += 4) rSum += pixels[i];
         const avgRed = rSum / (pixels.length / 4);
 
-        // Debug: show red value so we can tune threshold
-        statusEl.textContent = 'red: ' + Math.round(avgRed);
-
         if (avgRed < 60) {
             bpmEl.textContent    = '--';
             stateEl.textContent  = 'cover lens with finger';
@@ -582,23 +579,29 @@ function analyzePulse(val) {
 
     const avg = dataPoints.reduce((a, b) => a + b) / dataPoints.length;
 
-    if (val > avg * 1.0015 && (now - lastPeakTime) > 450) {
+    // Require stronger signal (1.003) and longer gap (600ms = max 100bpm raw)
+    if (val > avg * 1.003 && (now - lastPeakTime) > 600) {
         const interval = now - lastPeakTime;
         const bpm = Math.round(60000 / interval);
 
-        if (bpm > 45 && bpm < 160) {
+        // Tighter range: 45-130 bpm only
+        if (bpm > 45 && bpm < 130) {
             beatHistory.push(bpm);
-            if (beatHistory.length > 8) beatHistory.shift();
+            if (beatHistory.length > 10) beatHistory.shift();
 
-            currentBpm = Math.round(
-                beatHistory.reduce((a, b) => a + b) / beatHistory.length
-            );
+            // Use median instead of mean to filter outliers
+            const sorted = [...beatHistory].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            currentBpm = sorted.length % 2 !== 0
+                ? sorted[mid]
+                : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 
             bpmEl.textContent = currentBpm;
             updateState(currentBpm);
             triggerBeat();
 
-            if (beatHistory.length >= 5) {
+            // Need more readings before showing button (more stable)
+            if (beatHistory.length >= 6) {
                 statusEl.textContent = 'heartbeat locked';
                 viewBtn.classList.add('visible');
             }
