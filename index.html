@@ -380,7 +380,7 @@ const PAINTINGS = {
     1: {
         name: "Painting I",
         calm:     "https://player.vimeo.com/video/1199573121?autoplay=1&loop=1&title=0&byline=0&portrait=0",
-        neutral:  "https://player.vimeo.com/video/1199573119?autoplay=1&loop=1&title=0&byline=0&portrait=0",
+        neutral:  "https://player.vimeo.com/video/1201249057?autoplay=1&loop=1&title=0&byline=0&portrait=0",
         elevated: "https://player.vimeo.com/video/1201189942?autoplay=1&loop=1&title=0&byline=0&portrait=0"
     },
     2: {
@@ -585,7 +585,7 @@ function analyzePulse(val) {
         const bpm = Math.round(60000 / interval);
 
         // Tighter range: 45-130 bpm only
-        if (bpm > 45 && bpm < 130) {
+        if (bpm > 40 && bpm < 150) {
             beatHistory.push(bpm);
             if (beatHistory.length > 10) beatHistory.shift();
 
